@@ -115,7 +115,7 @@ function Index() {
         return;
       }
       setMaterials(parsed);
-      setSelected(parsed[0]);
+      setSelected(parsed[0]!);
       setDataLabel(`${file.name} · ${parsed.length} records`);
       setQuery("");
     } catch {
