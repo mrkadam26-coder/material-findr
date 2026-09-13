@@ -43,7 +43,26 @@ export async function loadMaterials(): Promise<Material[]> {
 
 const LIMIT = 60;
 
-/** Ranked realtime search: exact code > code prefix > all tokens in text. */
+// Precomputed lowercase search haystack per material (substring matching
+// anywhere in code, description, long text, group, or old number).
+const haystackCache = new WeakMap<Material, string>();
+
+function getHaystack(m: Material): string {
+  let h = haystackCache.get(m);
+  if (h === undefined) {
+    h = `${m.code} ${m.description} ${m.longDescription ?? ""} ${m.group} ${m.oldNumber ?? ""}`.toLowerCase();
+    haystackCache.set(m, h);
+  }
+  return h;
+}
+
+/**
+ * Ranked realtime search. Every query token is matched as a SUBSTRING
+ * anywhere inside the material's text — not only at word starts — so e.g.
+ * "pipe" also finds "Hosepipe" and "316" finds "A182-F316L".
+ * Ranking: exact code > code prefix > code contains > description
+ * word-start > description contains anywhere > other fields.
+ */
 export function searchMaterials(materials: Material[], query: string): Material[] {
   const q = query.trim().toLowerCase();
   if (!q) return [];
@@ -51,8 +70,7 @@ export function searchMaterials(materials: Material[], query: string): Material[
   const scored: { m: Material; s: number }[] = [];
 
   for (const m of materials) {
-    const code = m.code.toLowerCase();
-    const text = `${code} ${m.description.toLowerCase()} ${(m.longDescription ?? "").toLowerCase()} ${m.group.toLowerCase()} ${(m.oldNumber ?? "").toLowerCase()}`;
+    const text = getHaystack(m);
 
     let ok = true;
     for (const t of tokens) {
@@ -63,14 +81,27 @@ export function searchMaterials(materials: Material[], query: string): Material[
     }
     if (!ok) continue;
 
+    const code = m.code.toLowerCase();
+    const desc = m.description.toLowerCase();
+
     let s = 10;
     if (code === q) s = 1000;
-    else if (code.startsWith(q)) s = 500;
-    else if (code.includes(q)) s = 300;
-    else if (m.description.toLowerCase().startsWith(q)) s = 200;
-    else if (m.description.toLowerCase().includes(q)) s = 100;
+    else if (code.startsWith(q)) s = 600;
+    else if (code.includes(q)) s = 500;
+    else if (desc.includes(q)) {
+      // Substring match anywhere in the description counts fully.
+      s = 300;
+      // Small bonus when it also lands on a word boundary.
+      const idx = desc.indexOf(q);
+      if (idx === 0 || /\s/.test(desc[idx - 1] ?? "")) s += 50;
+    } else {
+      s = 100;
+    }
+    // Bonus for each extra token found inside the description itself.
+    for (const t of tokens) {
+      if (desc.includes(t)) s += 5;
+    }
     scored.push({ m, s });
-    if (scored.length > 4000) break;
   }
 
   scored.sort((a, b) => b.s - a.s || a.m.code.localeCompare(b.m.code));
