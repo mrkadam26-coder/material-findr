@@ -70,7 +70,7 @@ function Index() {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
-  const [selected, setSelected] = useState<Material>(SAMPLE_MATERIALS[0]);
+  const [selected, setSelected] = useState<Material>(SAMPLE_MATERIALS[0]!);
   const boxRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);

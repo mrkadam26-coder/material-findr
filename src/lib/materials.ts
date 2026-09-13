@@ -4,15 +4,15 @@ export interface Material {
   standard: string;
   grade: string;
   family: string;
-  uns?: string;
-  tensile?: string;
-  yield?: string;
-  density?: string;
-  elongation?: string;
-  thermalConductivity?: string;
-  meltingRange?: string;
-  composition?: { element: string; range: string; pct: number }[];
-  equivalents?: string[];
+  uns?: string | undefined;
+  tensile?: string | undefined;
+  yield?: string | undefined;
+  density?: string | undefined;
+  elongation?: string | undefined;
+  thermalConductivity?: string | undefined;
+  meltingRange?: string | undefined;
+  composition?: { element: string; range: string; pct: number }[] | undefined;
+  equivalents?: string[] | undefined;
 }
 
 export const SAMPLE_MATERIALS: Material[] = [
