@@ -381,7 +381,10 @@ function Index() {
 
         <footer className="mt-6 flex flex-col items-start justify-between gap-3 border-t border-line/70 py-6 font-mono text-[11px] text-sub sm:flex-row sm:items-center">
           <span>Materialex · {materials.length.toLocaleString()} materials indexed</span>
-          <span>Upload an Excel sheet to search a different database</span>
+          <span className="flex flex-col items-start gap-1 sm:items-end">
+            <span>Upload an Excel sheet to search a different database</span>
+            <span className="tracking-widest text-muted-foreground">Created by Mahesh Kadam</span>
+          </span>
         </footer>
       </div>
     </div>
