@@ -161,7 +161,7 @@ function Index() {
             <p className="font-mono text-[11px] uppercase tracking-[.2em] text-accent">
               Material code search
             </p>
-            <h1 className="mt-3 text-4xl leading-[1.05] font-bold tracking-tight text-balance sm:text-5xl">
+            <h1 className="mt-3 font-heading text-5xl leading-[1.05] tracking-wide text-balance sm:text-6xl">
               Look up any material code in milliseconds.
             </h1>
             <p className="mt-4 max-w-md text-[15px] leading-relaxed text-pretty text-sub">
