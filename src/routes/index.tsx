@@ -42,7 +42,7 @@ function parseExcelRows(rows: Record<string, unknown>[]): Material[] {
     return undefined;
   };
   return rows
-    .map((row) => {
+    .map((row): Material | null => {
       const code = pick(row, "materialcode", "code", "designation", "material");
       if (!code) return null;
       return {
