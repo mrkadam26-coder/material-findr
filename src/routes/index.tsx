@@ -107,7 +107,7 @@ function Index() {
       const buf = await file.arrayBuffer();
       const wb = XLSX.read(buf);
       const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(
-        wb.Sheets[wb.SheetNames[0]],
+        wb.Sheets[wb.SheetNames[0] ?? ""] ?? {},
       );
       const parsed = parseExcelRows(rows);
       if (parsed.length === 0) {
