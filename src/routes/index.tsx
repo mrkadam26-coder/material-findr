@@ -161,7 +161,7 @@ function Index() {
             <p className="font-mono text-[11px] uppercase tracking-[.2em] text-accent">
               Material code search
             </p>
-            <h1 className="mt-3 text-4xl leading-[1.05] font-bold tracking-tight text-balance sm:text-5xl">
+            <h1 className="mt-3 font-heading text-5xl leading-[1.05] tracking-wide text-balance sm:text-6xl">
               Look up any material code in milliseconds.
             </h1>
             <p className="mt-4 max-w-md text-[15px] leading-relaxed text-pretty text-sub">
@@ -381,7 +381,10 @@ function Index() {
 
         <footer className="mt-6 flex flex-col items-start justify-between gap-3 border-t border-line/70 py-6 font-mono text-[11px] text-sub sm:flex-row sm:items-center">
           <span>Materialex · {materials.length.toLocaleString()} materials indexed</span>
-          <span>Upload an Excel sheet to search a different database</span>
+          <span className="flex flex-col items-start gap-1 sm:items-end">
+            <span>Upload an Excel sheet to search a different database</span>
+            <span className="tracking-widest text-muted-foreground">Created by Mahesh Kadam</span>
+          </span>
         </footer>
       </div>
     </div>

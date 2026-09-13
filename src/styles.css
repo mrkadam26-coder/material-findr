@@ -38,7 +38,8 @@
   --color-line: var(--line);
   --color-line2: var(--line2);
   --color-amber: var(--amber);
-  --font-display: "Space Grotesk", system-ui, sans-serif;
+  --font-display: "Barlow", system-ui, sans-serif;
+  --font-heading: "Bebas Neue", "Barlow", sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, monospace;
 }
 
