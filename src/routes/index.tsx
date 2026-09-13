@@ -2,7 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import {
-  SAMPLE_MATERIALS,
+  loadMaterials,
+  parseExcelRows,
   searchMaterials,
   type Material,
 } from "@/lib/materials";
@@ -11,17 +12,17 @@ export const Route = createFileRoute("/")({
   component: Index,
   head: () => ({
     meta: [
-      { title: "Materialex — Engineering Material Code Search" },
+      { title: "Materialex — Material Code Search" },
       {
         name: "description",
         content:
-          "Realtime search engine for engineering material codes. Look up alloys, steels, polymers and composites across ASTM, EN, ISO and SAE standards.",
+          "Realtime search across 60,000+ material master codes. Look up material numbers, descriptions, material groups and units of measure instantly.",
       },
-      { property: "og:title", content: "Materialex — Engineering Material Code Search" },
+      { property: "og:title", content: "Materialex — Material Code Search" },
       {
         property: "og:description",
         content:
-          "Realtime search engine for engineering material codes across ASTM, EN, ISO and SAE standards.",
+          "Realtime search across 60,000+ material master codes, descriptions and material groups.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -29,53 +30,39 @@ export const Route = createFileRoute("/")({
   }),
 });
 
-function parseExcelRows(rows: Record<string, unknown>[]): Material[] {
-  const pick = (row: Record<string, unknown>, ...keys: string[]) => {
-    for (const k of Object.keys(row)) {
-      const norm = k.toLowerCase().replace(/[^a-z0-9]/g, "");
-      if (keys.some((key) => norm.includes(key))) {
-        const v = row[k];
-        if (v !== undefined && v !== null && String(v).trim() !== "")
-          return String(v).trim();
-      }
-    }
-    return undefined;
-  };
-  return rows
-    .map((row): Material | null => {
-      const code = pick(row, "materialcode", "code", "designation", "material");
-      if (!code) return null;
-      return {
-        code,
-        description: pick(row, "description", "name", "desc") ?? "",
-        standard: pick(row, "standard", "spec", "specification") ?? "",
-        grade: pick(row, "grade") ?? "",
-        family: pick(row, "family", "category", "type", "class") ?? "",
-        uns: pick(row, "uns"),
-        tensile: pick(row, "tensile"),
-        yield: pick(row, "yield"),
-        density: pick(row, "density"),
-        elongation: pick(row, "elongation"),
-        thermalConductivity: pick(row, "thermal"),
-        meltingRange: pick(row, "melting"),
-        equivalents: pick(row, "equivalent")?.split(/[,;]/).map((s) => s.trim()),
-      } satisfies Material;
-    })
-    .filter((m): m is Material => m !== null);
-}
-
 function Index() {
-  const [materials, setMaterials] = useState<Material[]>(SAMPLE_MATERIALS);
-  const [dataLabel, setDataLabel] = useState("Sample index");
+  const [materials, setMaterials] = useState<Material[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [dataLabel, setDataLabel] = useState("Material master · zeng_mara_dump 16.03.26");
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
-  const [selected, setSelected] = useState<Material>(SAMPLE_MATERIALS[0]!);
+  const [selected, setSelected] = useState<Material | null>(null);
   const boxRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const results = useMemo(() => searchMaterials(materials, query), [materials, query]);
+
+  useEffect(() => {
+    let cancelled = false;
+    loadMaterials()
+      .then((list) => {
+        if (cancelled) return;
+        setMaterials(list);
+        setSelected(list[0] ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) setLoadError("Could not load the material index. Please reload the page.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => setActive(0), [results]);
 
@@ -111,12 +98,12 @@ function Index() {
       );
       const parsed = parseExcelRows(rows);
       if (parsed.length === 0) {
-        alert("No material codes found. Make sure your sheet has a Code column.");
+        alert("No material codes found. Make sure your sheet has a Material or Code column.");
         return;
       }
       setMaterials(parsed);
-      setSelected(parsed[0]!);
-      setDataLabel(`${file.name} · ${parsed.length} records`);
+      setSelected(parsed[0] ?? null);
+      setDataLabel(`${file.name} · ${parsed.length.toLocaleString()} records`);
       setQuery("");
     } catch {
       alert("Could not read that file. Please upload a valid .xlsx sheet.");
@@ -147,7 +134,7 @@ function Index() {
           <div className="flex items-center gap-3">
             <span className="hidden items-center gap-2 rounded-full border border-line bg-white/40 px-3 py-1 font-mono text-[10px] uppercase tracking-[.12em] text-sub sm:flex">
               <span className="animate-live size-1.5 rounded-full bg-emerald-500" />
-              Index live
+              {loading ? "Loading index" : "Index live"}
             </span>
             <button
               onClick={() => fileRef.current?.click()}
@@ -178,9 +165,13 @@ function Index() {
               Look up any material code in milliseconds.
             </h1>
             <p className="mt-4 max-w-md text-[15px] leading-relaxed text-pretty text-sub">
-              Search {materials.length.toLocaleString()} alloys, steels, polymers and
-              composites. Type a code, prefix or family.
+              {loading
+                ? "Loading your material master…"
+                : `Search ${materials.length.toLocaleString()} material records by code, description, material group or old number.`}
             </p>
+            {loadError && (
+              <p className="mt-3 font-mono text-[12px] text-amber">{loadError}</p>
+            )}
           </div>
 
           <div className="relative mt-8 max-w-2xl" ref={boxRef}>
@@ -208,8 +199,9 @@ function Index() {
                 }}
                 className="w-full bg-transparent py-3.5 font-mono text-[15px] text-ink placeholder:text-sub/60 focus:outline-none"
                 type="text"
-                placeholder="Try: 316, 4130, ULTEM…"
+                placeholder="Try: 7020000001, hose pipe, sieve…"
                 aria-label="Search material codes"
+                disabled={loading}
               />
               <div className="flex items-center gap-1.5">
                 <span className="hidden rounded-md border border-line bg-panel px-2 py-1 font-mono text-[10px] text-sub sm:block">
@@ -244,7 +236,7 @@ function Index() {
                           : "hover:bg-black/[.03]"
                       }`}
                     >
-                      <div className="flex items-baseline justify-between">
+                      <div className="flex items-baseline justify-between gap-3">
                         <span
                           className={`font-mono text-[15px] font-semibold tracking-tight ${
                             i === active ? "text-accent" : "text-ink"
@@ -252,13 +244,13 @@ function Index() {
                         >
                           {m.code}
                         </span>
-                        <span className="font-mono text-[10px] tracking-wide text-sub uppercase">
-                          {m.family || m.standard}
+                        <span className="shrink-0 font-mono text-[10px] tracking-wide text-sub uppercase">
+                          {m.group}
                         </span>
                       </div>
                       <p className="mt-0.5 text-[13px] text-ink">{m.description}</p>
                       <p className="mt-1 font-mono text-[11px] text-sub">
-                        {[m.standard, m.grade && `Grade ${m.grade}`, m.uns && `UNS ${m.uns}`]
+                        {[m.uom && `UoM ${m.uom}`, m.oldNumber && `Old ${m.oldNumber}`, m.created]
                           .filter(Boolean)
                           .join(" · ")}
                       </p>
@@ -286,90 +278,48 @@ function Index() {
                 Selected
               </span>
             </div>
-            <div className="mt-4 flex items-end justify-between gap-3">
-              <div>
-                <p className="font-mono text-3xl font-semibold tracking-tight text-ink">
-                  {selected.code}
-                </p>
-                <p className="mt-1 text-sm text-ink">{selected.description}</p>
-              </div>
-              {selected.uns && (
-                <span className="shrink-0 rounded-md border border-line bg-panel px-2 py-1 font-mono text-[10px] text-sub">
-                  UNS {selected.uns}
-                </span>
-              )}
-            </div>
-            {(selected.equivalents?.length || selected.standard) && (
-              <div className="mt-4 flex flex-wrap gap-1.5">
-                {selected.standard && (
-                  <span className="rounded-md bg-ink/[.04] px-2 py-1 font-mono text-[10px] text-sub">
-                    {selected.standard}
-                  </span>
-                )}
-                {selected.equivalents?.map((eq) => (
-                  <span
-                    key={eq}
-                    className="rounded-md bg-ink/[.04] px-2 py-1 font-mono text-[10px] text-sub"
-                  >
-                    {eq}
-                  </span>
-                ))}
-              </div>
-            )}
-            <div className="mt-5 border-t border-line/70 pt-4">
-              <h3 className="font-mono text-[10px] tracking-[.18em] text-sub uppercase">
-                Properties
-              </h3>
-              <dl className="mt-3 space-y-0 divide-y divide-line/60">
-                {(
-                  [
-                    ["Density", selected.density],
-                    ["Tensile strength", selected.tensile],
-                    ["Yield strength", selected.yield],
-                    ["Elongation", selected.elongation],
-                    ["Thermal cond.", selected.thermalConductivity],
-                    ["Melting range", selected.meltingRange],
-                  ] as const
-                )
-                  .filter(([, v]) => v)
-                  .map(([label, v]) => (
-                    <div key={label} className="flex items-center justify-between py-2">
-                      <dt className="text-[13px] text-sub">{label}</dt>
-                      <dd className="font-mono text-[13px] font-medium text-ink">{v}</dd>
-                    </div>
-                  ))}
-                {!selected.density &&
-                  !selected.tensile &&
-                  !selected.yield &&
-                  !selected.elongation &&
-                  !selected.thermalConductivity &&
-                  !selected.meltingRange && (
-                    <p className="py-2 text-[13px] text-sub">No property data.</p>
-                  )}
-              </dl>
-            </div>
-            {selected.composition && selected.composition.length > 0 && (
-              <div className="mt-5 border-t border-line/70 pt-4">
-                <h3 className="font-mono text-[10px] tracking-[.18em] text-sub uppercase">
-                  Composition
-                </h3>
-                <div className="mt-3 space-y-2">
-                  {selected.composition.map((c) => (
-                    <div key={c.element} className="flex items-center gap-2">
-                      <span className="w-8 font-mono text-[11px] text-sub">{c.element}</span>
-                      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-line/60">
-                        <div
-                          className="h-full rounded-full bg-accent"
-                          style={{ width: `${Math.min(c.pct * 4, 100)}%` }}
-                        />
-                      </div>
-                      <span className="w-16 text-right font-mono text-[11px] text-ink">
-                        {c.range}
-                      </span>
-                    </div>
-                  ))}
+            {selected ? (
+              <>
+                <div className="mt-4">
+                  <p className="font-mono text-3xl font-semibold tracking-tight text-ink">
+                    {selected.code}
+                  </p>
+                  <p className="mt-1 text-sm text-ink">{selected.description}</p>
                 </div>
-              </div>
+                {selected.longDescription && (
+                  <p className="mt-3 rounded-lg bg-ink/[.03] p-3 text-[13px] leading-relaxed text-sub">
+                    {selected.longDescription}
+                  </p>
+                )}
+                <div className="mt-5 border-t border-line/70 pt-4">
+                  <h3 className="font-mono text-[10px] tracking-[.18em] text-sub uppercase">
+                    Master data
+                  </h3>
+                  <dl className="mt-3 space-y-0 divide-y divide-line/60">
+                    {(
+                      [
+                        ["Material group", selected.group],
+                        ["Base unit", selected.uom],
+                        ["Old material no.", selected.oldNumber],
+                        ["Created on", selected.created],
+                      ] as const
+                    )
+                      .filter(([, v]) => v)
+                      .map(([label, v]) => (
+                        <div key={label} className="flex items-center justify-between gap-3 py-2">
+                          <dt className="text-[13px] text-sub">{label}</dt>
+                          <dd className="text-right font-mono text-[13px] font-medium text-ink">
+                            {v}
+                          </dd>
+                        </div>
+                      ))}
+                  </dl>
+                </div>
+              </>
+            ) : (
+              <p className="mt-4 font-mono text-[12px] text-sub">
+                {loading ? "Loading records…" : "Search and select a material."}
+              </p>
             )}
           </aside>
 
@@ -381,7 +331,7 @@ function Index() {
               <span className="font-mono text-[11px] text-sub">
                 {results.length > 0
                   ? `${results.length} rows · sorted by match`
-                  : `${materials.length} records indexed`}
+                  : `${materials.length.toLocaleString()} records indexed`}
               </span>
             </div>
             <div className="overflow-x-auto">
@@ -390,36 +340,32 @@ function Index() {
                   <tr className="border-b border-line/70 font-mono text-[10px] tracking-[.14em] text-sub uppercase">
                     <th className="px-5 py-2.5 font-medium">Code</th>
                     <th className="px-3 py-2.5 font-medium">Description</th>
-                    <th className="px-3 py-2.5 font-medium">Standard</th>
-                    <th className="px-3 py-2.5 font-medium">Grade</th>
-                    <th className="px-5 py-2.5 text-right font-medium">Tensile</th>
+                    <th className="px-3 py-2.5 font-medium">Group</th>
+                    <th className="px-3 py-2.5 font-medium">UoM</th>
+                    <th className="px-5 py-2.5 text-right font-medium">Created</th>
                   </tr>
                 </thead>
                 <tbody className="text-sm">
-                  {(results.length > 0 ? results : materials.slice(0, 10)).map((m, i) => (
+                  {(results.length > 0 ? results : materials.slice(0, 12)).map((m, i) => (
                     <tr
                       key={m.code + i}
                       onClick={() => setSelected(m)}
                       className={`cursor-pointer border-b border-line/50 transition-colors ${
-                        selected.code === m.code
-                          ? "bg-accent/[.06]"
-                          : "hover:bg-black/[.02]"
+                        selected?.code === m.code ? "bg-accent/[.06]" : "hover:bg-black/[.02]"
                       }`}
                     >
                       <td
                         className={`px-5 py-3 font-mono font-semibold ${
-                          selected.code === m.code ? "text-accent" : "text-ink"
+                          selected?.code === m.code ? "text-accent" : "text-ink"
                         }`}
                       >
                         {m.code}
                       </td>
                       <td className="px-3 py-3 text-ink">{m.description}</td>
-                      <td className="px-3 py-3 font-mono text-[12px] text-sub">
-                        {m.standard}
-                      </td>
-                      <td className="px-3 py-3 font-mono text-[12px] text-sub">{m.grade}</td>
-                      <td className="px-5 py-3 text-right font-mono text-[12px] text-ink">
-                        {m.tensile ?? "—"}
+                      <td className="px-3 py-3 font-mono text-[12px] text-sub">{m.group}</td>
+                      <td className="px-3 py-3 font-mono text-[12px] text-sub">{m.uom}</td>
+                      <td className="px-5 py-3 text-right font-mono text-[12px] text-sub">
+                        {m.created ?? "—"}
                       </td>
                     </tr>
                   ))}
@@ -435,7 +381,7 @@ function Index() {
 
         <footer className="mt-6 flex flex-col items-start justify-between gap-3 border-t border-line/70 py-6 font-mono text-[11px] text-sub sm:flex-row sm:items-center">
           <span>Materialex · {materials.length.toLocaleString()} materials indexed</span>
-          <span>Upload an Excel sheet to search your own database</span>
+          <span>Upload an Excel sheet to search a different database</span>
         </footer>
       </div>
     </div>
